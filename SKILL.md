@@ -7,7 +7,7 @@ metadata: {"clawdbot":{"emoji":"🎮","requires":{"bins":["node"],"env":["ZORK_A
 
 # Zork Discord
 
-Play Zork and other Z-machine interactive fiction games directly in Discord chat.
+Play Zork and other Z-machine interactive fiction games directly in Discord chat — **naturally**, without needing a command prefix!
 
 ## Prerequisites
 
@@ -62,7 +62,33 @@ export ZORK_API_URL=http://localhost:3000
 node scripts/discord-bot.cjs
 ```
 
-## Discord Commands
+## Two Modes
+
+### 🎮 Conversation Mode (Default)
+Once you start a game, just type commands naturally:
+
+```
+!zork start        → Start the game
+look               → Look around
+open mailbox       → Open the mailbox
+take brochure      → Pick up items
+go east            → Move around
+inventory          → Check what you're carrying
+quit               → End the game
+```
+
+**No `!zork` prefix needed while playing!** Just chat like you're exploring together.
+
+### 📟 Command Mode
+If you prefer explicit commands:
+```
+!zork start
+!zork look
+!zork open mailbox
+!zork take brochure
+!zork inventory
+!zork quit
+```
 
 | Command | Action |
 |---------|--------|
