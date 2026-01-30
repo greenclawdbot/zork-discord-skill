@@ -7,7 +7,7 @@ metadata: {"clawdbot":{"emoji":"🎮","requires":{"bins":["node"],"env":["ZORK_A
 
 # Zork Discord
 
-Play Zork and other Z-machine interactive fiction games directly in Discord chat using Clawdbot.
+Play Zork and other Z-machine interactive fiction games directly in Discord chat.
 
 ## Prerequisites
 
@@ -22,32 +22,44 @@ Play Zork and other Z-machine interactive fiction games directly in Discord chat
    brew install frotz
    ```
 
-## Integration with Clawdbot
+3. **discord.js** - For Discord bot
+   ```bash
+   cd ~/clawd/skills/zork-discord
+   npm install discord.js
+   ```
 
-### Option 1: Direct Script (Recommended for Testing)
+## Running the Discord Bot
 
-Run the Discord integration script directly:
+### Quick Start
+
+```bash
+cd ~/clawd/skills/zork-discord
+
+# Set environment variables
+export ZORK_API_URL=http://localhost:3000
+export DISCORD_BOT_TOKEN=your_discord_bot_token
+export ZORK_CHANNEL_ID=your_discord_channel_id  # optional
+
+# Start the bot
+node scripts/discord-bot.cjs
+```
+
+### Setting Up Discord Bot
+
+1. Go to [Discord Developer Portal](https://discord.com/developers/applications)
+2. Create a new application
+3. Go to "Bot" section and create a bot
+4. Copy the bot token
+5. Invite the bot to your server with appropriate permissions (Send Messages, Read Message History)
+6. Get the channel ID where you want to play Zork (enable Developer Mode in Discord, right-click channel → Copy ID)
+
+### Running in Terminal (No Discord)
+
+For testing without Discord:
 ```bash
 cd ~/clawd/skills/zork-discord
 export ZORK_API_URL=http://localhost:3000
-node scripts/zork.cjs
-```
-
-This runs in CLI test mode. For actual Discord integration, use the message handler.
-
-### Option 2: Clawdbot Message Handler
-
-Add to your Clawdbot configuration to auto-handle `!zork` messages:
-
-```javascript
-// In your Clawdbot config or session handler
-const { handleMessage } = require('~/clawd/skills/zork-discord/scripts/zork.cjs');
-
-// When a message starts with !zork, call:
-const response = await handleMessage(messageText, channelId);
-if (response) {
-  await message.reply(response);
-}
+node scripts/discord-bot.cjs
 ```
 
 ## Discord Commands
