@@ -1,23 +1,27 @@
 #!/usr/bin/env node
 
 /**
- * Zork Discord Bot
- * Standalone Discord bot for playing Zork via the Z-Machine API
+ * Zork Discord Bot - Natural Conversation Mode
+ * Play Zork via Discord chat - no prefix needed once game starts!
  * 
- * Run this alongside Clawdbot:
- *   cd ~/clawd/skills/zork-discord
- *   node scripts/discord-bot.cjs
+ * Modes:
+ * 1. IDLE - Waiting for !zork start
+ * 2. PLAYING - Direct conversation with Zork
  */
 
-const { Client, GatewayIntentBits, TextChannel } = require('discord.js');
-const { handleMessage, client: zorkClient } = require('./zork.cjs');
+const { Client, GatewayIntentBits } = require('discord.js');
 
 // Configuration
 const DISCORD_TOKEN = process.env.DISCORD_BOT_TOKEN || '';
 const ZORK_API_URL = process.env.ZORK_API_URL || 'http://localhost:3000';
 const ZORK_CHANNEL_ID = process.env.ZORK_CHANNEL_ID || '';
 
-// Create Discord client
+// Session storage per channel
+const sessions = new Map();
+const gameStates = new Map(); // 'idle' or 'playing'
+
+const { handleMessage, client: zorkClient } = require('./zork.cjs');
+
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -26,24 +30,45 @@ const client = new Client({
   ]
 });
 
-// Session storage per channel
-const sessions = new Map();
-
-async function handleZorkCommand(message) {
+async function handleDirectMessage(message) {
   const channelId = message.channel.id;
   const text = message.content.trim();
 
+  // Check if we should handle this channel
+  if (ZORK_CHANNEL_ID && channelId !== ZORK_CHANNEL_ID) {
+    return;
+  }
+
+  // Ignore bot messages
+  if (message.author.bot) return;
+
+  const state = gameStates.get(channelId) || 'idle';
+
   try {
-    const response = await handleMessage(text, channelId);
-    if (response) {
-      // Split long messages
-      if (response.length > 1900) {
-        const chunks = response.match(/.{1,1900}/g);
-        for (const chunk of chunks) {
-          await message.reply(chunk);
+    if (state === 'playing') {
+      // Direct conversation mode - send straight to Zork
+      const response = await handleMessage(text, channelId);
+      if (response) {
+        // Check if this was a quit command (handles !zork quit too)
+        if (response.includes('Game ended') || text.toLowerCase() === 'quit' || text.toLowerCase() === '!zork quit') {
+          gameStates.set(channelId, 'idle');
         }
-      } else {
-        await message.reply(response);
+        await sendResponse(message, response);
+      }
+    } else {
+      // Idle mode - handle commands with !zork prefix
+      if (text.toLowerCase().startsWith('!zork')) {
+        const response = await handleMessage(text, channelId);
+        if (response) {
+          // Check if starting a game
+          if (response.includes('West of House') || response.includes('ZORK I:')) {
+            gameStates.set(channelId, 'playing');
+            await message.reply("🎮 **Game started!** You can now play Zork by typing commands directly (no prefix needed).\nType `quit` to end the game.");
+          }
+          await sendResponse(message, response);
+        }
+      } else if (text.toLowerCase() === 'help' || text.toLowerCase() === '!help') {
+        await message.reply("🎮 **Zork Discord Bot**\n\nTo start playing: `!zork start`\nOnce started, just type commands naturally!\n\nExamples:\n- `look` - Look around\n- `open mailbox` - Open the mailbox\n- `take brochure` - Pick up items\n- `quit` - End the game");
       }
     }
   } catch (error) {
@@ -51,23 +76,31 @@ async function handleZorkCommand(message) {
   }
 }
 
-client.on('messageCreate', async (message) => {
-  // Ignore bot messages
-  if (message.author.bot) return;
-
-  // Check for !zork commands
-  if (message.content.trim().toLowerCase().startsWith('!zork')) {
-    await handleZorkCommand(message);
+async function sendResponse(message, response) {
+  // Split long messages
+  if (response.length > 1900) {
+    const chunks = response.match(/.{1,1900}/g);
+    for (const chunk of chunks) {
+      await message.reply(chunk);
+    }
+  } else {
+    await message.reply(response);
   }
+}
+
+client.on('messageCreate', async (message) => {
+  await handleDirectMessage(message);
 });
 
 client.on('ready', () => {
-  console.log(`🎮 Zork Discord Bot logged in as ${client.user.tag}`);
-  console.log(`API URL: ${ZORK_API_URL}`);
+  console.log(`🎮 Zork Discord Bot ready!`);
+  console.log(`API: ${ZORK_API_URL}`);
   if (ZORK_CHANNEL_ID) {
     console.log(`Restricted to channel: ${ZORK_CHANNEL_ID}`);
   }
-  console.log('Ready for !zork commands!\n');
+  console.log('\nModes:');
+  console.log('  IDLE:     Type !zork start to begin');
+  console.log('  PLAYING:  Just type commands naturally!\n');
 });
 
 // Error handling
@@ -82,49 +115,56 @@ process.on('unhandledRejection', (reason, promise) => {
 // CLI mode (no Discord)
 if (require.main === module) {
   if (!DISCORD_TOKEN) {
-    console.log('🎮 Zork Discord Bot - CLI Test Mode');
+    console.log('🎮 Zork Discord Bot - Interactive CLI Mode');
     console.log(`API: ${ZORK_API_URL}`);
-    console.log('\nTo run as a Discord bot, set DISCORD_BOT_TOKEN env var.');
-    console.log('To restrict to a channel, set ZORK_CHANNEL_ID.\n');
-    
-    // Run CLI test
-    const { handleMessage } = require('./zork.cjs');
-    
-    async function cliTest() {
-      console.log('=== Starting game ===');
-      let resp = await handleMessage('!zork start', 'cli-test');
-      console.log(resp.substring(0, 500));
-      console.log('...\n');
+    console.log('\nNo DISCORD_BOT_TOKEN set - running in CLI test mode.\n');
+    console.log('Type commands naturally (no prefix needed):\n');
 
-      console.log('=== Opening mailbox ===');
-      resp = await handleMessage('!zork open mailbox', 'cli-test');
-      console.log(resp);
-
-      console.log('=== Taking brochure ===');
-      resp = await handleMessage('!zork take brochure', 'cli-test');
-      console.log(resp);
-
-      console.log('=== Inventory ===');
-      resp = await handleMessage('!zork inventory', 'cli-test');
-      console.log(resp);
-
-      console.log('=== Going east ===');
-      resp = await handleMessage('!zork go east', 'cli-test');
-      console.log(resp);
-
-      console.log('=== Quitting ===');
-      resp = await handleMessage('!zork quit', 'cli-test');
-      console.log(resp);
-    }
-    
-    cliTest().then(() => process.exit(0)).catch(err => {
-      console.error(err);
-      process.exit(1);
+    const readline = require('readline');
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout,
+      prompt: '> '
     });
+
+    let gameStarted = false;
+
+    rl.on('line', async (line) => {
+      const text = line.trim();
+      if (!text) {
+        rl.prompt();
+        return;
+      }
+
+      // Check for quit
+      if (text.toLowerCase() === 'quit' || text.toLowerCase() === 'exit') {
+        if (gameStarted) {
+          await handleMessage('!zork quit', 'cli');
+          console.log('\n🎮 Game ended! Thanks for playing!\n');
+        }
+        process.exit(0);
+      }
+
+      // Start command
+      if (text.toLowerCase() === '!zork start' || text.toLowerCase() === 'start') {
+        const resp = await handleMessage('!zork start', 'cli');
+        console.log('\n' + resp + '\n');
+        gameStarted = true;
+        console.log('You can now type commands directly!\n');
+        rl.setPrompt('> ');
+      } else {
+        const response = await handleMessage(text, 'cli');
+        if (response) {
+          console.log('\n' + response + '\n');
+        }
+      }
+      rl.prompt();
+    });
+
+    rl.prompt();
   } else {
-    // Run as Discord bot
     client.login(DISCORD_TOKEN);
   }
 }
 
-module.exports = { client, handleZorkCommand };
+module.exports = { client, handleDirectMessage };

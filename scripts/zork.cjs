@@ -123,8 +123,8 @@ async function handleMessage(message, channelId) {
       return formatZorkOutput(res.output, true);
     }
 
-    // Quit command
-    if (cmd === '!zork' && (args === 'quit' || args === 'stop')) {
+    // Quit command - handles both !zork quit and just quit
+    if ((cmd === '!zork' && (args === 'quit' || args === 'stop')) || cmd === 'quit' || cmd === 'stop') {
       if (sessionId) {
         await client.deleteSession(sessionId);
         sessions.delete(channelId);
@@ -147,6 +147,12 @@ async function handleMessage(message, channelId) {
       }
       
       const res = await client.sendCommand(sessionId, command);
+      return formatZorkOutput(res.output, false);
+    }
+
+    // Direct game commands (no !zork prefix needed when session is active)
+    if (sessionId) {
+      const res = await client.sendCommand(sessionId, text);
       return formatZorkOutput(res.output, false);
     }
 
